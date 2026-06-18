@@ -1137,22 +1137,25 @@ function openModal(name, rowEl) {
   if (showCumCol) rows += cell(sumRow('sales'), true, false);
   rows += '</tr>';
 
-  rows += '<tr class="row-total"><td>판관비 합계</td>';
-  viewMonths.forEach(m => rows += cell(td.monthly[m]?.sga||0, true, false));
-  if (showCumCol) rows += cell(sumRow('sga'), true, false);
-  rows += '</tr>';
-
-  rows += `<tr class="row-sep"><td colspan="${colCount+1}">▸ 판관비 세부 항목</td></tr>`;
-  allKeys.forEach(k => {
-    const vals = viewMonths.map(m => td.monthly[m]?.sga_detail?.[k]||0);
-    if (vals.every(v => v===0)) return;
-    rows += `<tr><td style="padding-left:20px">${k}</td>`;
-    vals.forEach(v => rows += cell(v, false, false));
-    if (showCumCol) rows += cell(sumRow(k), false, false);
+  if (name !== '디자인') {
+    rows += '<tr class="row-total"><td>판관비 합계</td>';
+    viewMonths.forEach(m => rows += cell(td.monthly[m]?.sga||0, true, false));
+    if (showCumCol) rows += cell(sumRow('sga'), true, false);
     rows += '</tr>';
-  });
 
-  rows += `<tr class="row-sep"><td colspan="${colCount+1}"></td></tr>`;
+    rows += `<tr class="row-sep"><td colspan="${colCount+1}">▸ 판관비 세부 항목</td></tr>`;
+    allKeys.forEach(k => {
+      const vals = viewMonths.map(m => td.monthly[m]?.sga_detail?.[k]||0);
+      if (vals.every(v => v===0)) return;
+      rows += `<tr><td style="padding-left:20px">${k}</td>`;
+      vals.forEach(v => rows += cell(v, false, false));
+      if (showCumCol) rows += cell(sumRow(k), false, false);
+      rows += '</tr>';
+    });
+
+    rows += `<tr class="row-sep"><td colspan="${colCount+1}"></td></tr>`;
+  }
+
   rows += '<tr class="row-profit"><td>영업이익</td>';
   viewMonths.forEach(m => rows += cell(td.monthly[m]?.profit||0, true, true));
   if (showCumCol) rows += cell(sumRow('profit'), true, true);
