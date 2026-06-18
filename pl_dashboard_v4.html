@@ -983,11 +983,12 @@ function renderTeamTable(teams) {
 
   document.getElementById('teamTbody').innerHTML = teams.map((t,i)=>{
     const ip = t.profit>=0;
+    const searchBtn = t.name === '디자인' ? '' : `<button class="search-btn" onclick="event.stopPropagation();openModal('${t.name}',this.closest('tr'))" title="세부 내역 보기">🔍</button>`;
     return `<tr>
       <td>
         ${t.name}
         <span class="badge ${ip?'g':'r'}">${ip?'흑자':'적자'}</span>
-        <button class="search-btn" onclick="event.stopPropagation();openModal('${t.name}',this.closest('tr'))" title="세부 내역 보기">🔍</button>
+        ${searchBtn}
       </td>
       <td>${f(t.sales)}</td><td>${f(t.sga)}</td>
       <td style="font-weight:700;color:${ip?'var(--green)':'var(--red)'}">${f(t.profit)}</td>
