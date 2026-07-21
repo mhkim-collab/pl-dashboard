@@ -359,6 +359,21 @@ table.mt tr:hover td{background:var(--purple-pale)}
     </div>
   </div>
 
+  <!-- 인당생산성 -->
+  <div class="card" id="productivitySection" style="display:none">
+    <div class="sec-hdr">
+      <span class="sec-dot" style="background:var(--purple)"></span>
+      <span class="sec-title">팀별 인당생산성</span>
+      <span class="sec-sub" id="prodLabel"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table class="dt">
+        <thead><tr><th>팀</th><th>인원</th><th>인당 총액매출</th><th>인당 순액매출</th><th>인당 영업이익</th></tr></thead>
+        <tbody id="prodTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- 팀별 막대 차트 -->
   <div class="card">
     <div class="sec-hdr">
@@ -451,6 +466,7 @@ let TEAMS_DATA = {};
 let TEAMS = [];
 let BIZ_DATA = {};
 let GROSS_TOTAL = {};
+let PRODUCTIVITY_DATA = null;
 const S = { month: 1, mode: 'monthly', trendView: 'team', trendFilter: 'all' };
 let chartTeam=null, chartGrp=null, chartTrend=null;
 let _curTeams = [];
@@ -619,6 +635,42 @@ function parseXlsxBuffer(buffer) {
       }
     }
   }
+  // 인당생산성 시트 파싱
+  const prodSheet = wb.SheetNames.find(n => n.includes('인당생산성') || n.includes('인당'));
+  if (prodSheet) {
+    const prows = XLSX.utils.sheet_to_json(wb.Sheets[prodSheet], { header: 1, defval: '' });
+    let pColMap = {}, pHeaderIdx = -1;
+    for (let i = 0; i < prows.length; i++) {
+      const idx = prows[i].findIndex((c,ci) => /^\d{1,2}월$/.test(String(c||'').trim()));
+      if (idx >= 0) {
+        pHeaderIdx = i;
+        prows[i].forEach((c, ci) => { const v = String(c||'').trim(); if (/^\d{1,2}월$/.test(v)) pColMap[v] = ci; });
+        break;
+      }
+    }
+    if (pHeaderIdx >= 0) {
+      const prodData = {};
+      let curTeam = '';
+      for (let i = pHeaderIdx + 1; i < prows.length; i++) {
+        const row = prows[i];
+        const col0 = String(row[0]||'').trim();
+        const col1 = String(row[1]||'').trim().replace(/\s/g,'');
+        if (col0) curTeam = col0;
+        if (!curTeam) continue;
+        if (!prodData[curTeam]) prodData[curTeam] = { monthly: {} };
+        ALL_MONTHS.forEach(m => {
+          if (!prodData[curTeam].monthly[m]) prodData[curTeam].monthly[m] = { headcount:0, gross:0, sales:0, profit:0 };
+          if (pColMap[m] === undefined) return;
+          const v = num(row[pColMap[m]]);
+          if (col1 === '인원계' || col1 === '인원') prodData[curTeam].monthly[m].headcount = v;
+          else if (col1 === '총액매출') prodData[curTeam].monthly[m].gross = v;
+          else if (col1 === '순액매출') prodData[curTeam].monthly[m].sales = v;
+          else if (col1 === '영업이익') prodData[curTeam].monthly[m].profit = v;
+        });
+      }
+      result['__productivity__'] = prodData;
+    }
+  }
   return result;
 }
 
@@ -750,6 +802,8 @@ async function loadFromDrive() {
     delete parsed['__광고biz_gross__'];
     delete parsed['__기술biz_gross__'];
     delete parsed['__디자인_profit__'];
+    const productivityData = parsed['__productivity__'] || null;
+    delete parsed['__productivity__'];
 
     const lastMonth = detectLastMonth(parsed);
     MONTHS = ALL_MONTHS.slice(0, lastMonth);
@@ -764,6 +818,7 @@ async function loadFromDrive() {
     }
     TEAMS_DATA = parsed;
     TEAMS = Object.values(TEAMS_DATA);
+    PRODUCTIVITY_DATA = productivityData;
     buildBizData(rentalData, grossTotalRaw, adBizGross, techBizGross);
 
     document.getElementById('hdrSub').textContent = `${file.name} · Actual 1~${lastMonth}월 · 단위: 원`;
@@ -903,6 +958,7 @@ function renderAll() {
   document.getElementById('hdr-profit').textContent = fB(cum.total.profit);
   renderBiz(em()); renderKPI(total); renderGrpCards(grps,total);
   renderTeamTable(teams); renderGrpTable(grps);
+  renderProductivity(em());
   renderTeamChart(teams); renderGrpChart(grps); renderTrendChart();
   _curTeams = teams;
 }
@@ -961,6 +1017,37 @@ function renderKPI(t) {
      <div class="kpi oran"><div class="kpi-lbl">순액 매출</div><div class="kpi-val">${fB(t.sales)}</div><div class="kpi-sub">원</div></div>
      <div class="kpi"><div class="kpi-lbl">판매관리비</div><div class="kpi-val">${fB(t.sga)}</div><div class="kpi-sub">원</div></div>
      <div class="kpi ${t.profit>=0?'':'oran'}"><div class="kpi-lbl">영업이익</div><div class="kpi-val ${pc}">${fB(t.profit)}</div><div class="kpi-sub">영업이익률 ${mg}%</div><div class="delta ${t.profit>=0?'up':'dn'}">${t.profit>=0?'▲ 흑자':'▼ 적자'}</div></div>`;
+}
+
+function renderProductivity(mi) {
+  const sec = document.getElementById('productivitySection');
+  if (!PRODUCTIVITY_DATA) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  if (document.getElementById('prodLabel')) document.getElementById('prodLabel').textContent = pl();
+
+  const isCum = mi <= 0;
+  const cumMonths = isCum ? MONTHS.slice(0, mi < 0 ? Math.abs(mi) : MONTHS.length) : [MONTHS[mi-1]];
+
+  const rows = TEAM_CONFIG.map(tc => {
+    const pd = PRODUCTIVITY_DATA[tc.sheet];
+    if (!pd) return '';
+    // 누계: 인원은 마지막 월, 금액은 합산
+    const lastM = cumMonths[cumMonths.length - 1];
+    const headcount = pd.monthly[lastM]?.headcount || 0;
+    const gross  = cumMonths.reduce((s,m) => s + (pd.monthly[m]?.gross  || 0), 0);
+    const sales  = cumMonths.reduce((s,m) => s + (pd.monthly[m]?.sales  || 0), 0);
+    const profit = cumMonths.reduce((s,m) => s + (pd.monthly[m]?.profit || 0), 0);
+    const ip = profit >= 0;
+    return `<tr>
+      <td>${tc.sheet}</td>
+      <td style="text-align:center">${headcount}</td>
+      <td>${f(gross)}</td>
+      <td>${f(sales)}</td>
+      <td style="font-weight:700;color:${ip?'var(--green)':'var(--red)'}">${f(profit)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('prodTbody').innerHTML = rows;
 }
 
 function renderGrpCards(grps, total) {
