@@ -1047,8 +1047,8 @@ function renderProductivity(mi) {
       ? `<button class="search-btn" onclick="showProdDetail('${teamName}',${regular},${contract},${intern},${headcount})" title="인원 상세">🔍</button>`
       : '';
     return `<tr>
-      <td>${teamName} ${searchBtn}</td>
-      <td style="text-align:center">${headcount}</td>
+      <td>${teamName}</td>
+      <td style="text-align:center">${headcount} ${searchBtn}</td>
       <td>${f(gross)}</td>
       <td>${f(sales)}</td>
       <td style="font-weight:700;color:${ip?'var(--green)':'var(--red)'}">${f(profit)}</td>
