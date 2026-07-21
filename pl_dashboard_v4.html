@@ -1028,18 +1028,16 @@ function renderProductivity(mi) {
   const isCum = mi <= 0;
   const cumMonths = isCum ? MONTHS.slice(0, mi < 0 ? Math.abs(mi) : MONTHS.length) : [MONTHS[mi-1]];
 
-  const rows = TEAM_CONFIG.map(tc => {
-    const pd = PRODUCTIVITY_DATA[tc.sheet];
-    if (!pd) return '';
-    // 누계: 인원은 마지막 월, 금액은 합산
+  const rows = Object.entries(PRODUCTIVITY_DATA).map(([teamName, pd]) => {
     const lastM = cumMonths[cumMonths.length - 1];
     const headcount = pd.monthly[lastM]?.headcount || 0;
     const gross  = cumMonths.reduce((s,m) => s + (pd.monthly[m]?.gross  || 0), 0);
     const sales  = cumMonths.reduce((s,m) => s + (pd.monthly[m]?.sales  || 0), 0);
     const profit = cumMonths.reduce((s,m) => s + (pd.monthly[m]?.profit || 0), 0);
+    if (headcount === 0 && gross === 0 && sales === 0 && profit === 0) return '';
     const ip = profit >= 0;
     return `<tr>
-      <td>${tc.sheet}</td>
+      <td>${teamName}</td>
       <td style="text-align:center">${headcount}</td>
       <td>${f(gross)}</td>
       <td>${f(sales)}</td>
