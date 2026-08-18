@@ -1242,59 +1242,55 @@ function openModal(name, rowEl) {
   const showCumCol = viewMonths.length > 1;
   const colCount   = viewMonths.length + (showCumCol ? 1 : 0);
 
+  document.getElementById('mDetailHead').innerHTML =
+    '<th style="white-space:nowrap">항목</th>' + viewMonths.map(m => '<th>'+m+'</th>').join('') + (showCumCol ? '<th>누계</th>' : '');
+
   const allKeys = [];
   viewMonths.forEach(m => {
     Object.keys(td.monthly[m]?.sga_detail||{}).forEach(k => { if (!allKeys.includes(k)) allKeys.push(k); });
   });
-  const visibleKeys = name === '디자인' ? [] : allKeys.filter(k => viewMonths.some(m => (td.monthly[m]?.sga_detail?.[k]||0) !== 0));
 
-  function cv(v, isProfit, bold) {
+  function cell(v, bold, isProfit) {
     const color = isProfit ? (v>=0?'color:var(--green)':'color:var(--red)') : (v<0?'color:var(--red)':'');
     const weight = bold ? 'font-weight:700;' : '';
-    return `<td style="${weight}${color};white-space:nowrap">${f(v)}</td>`;
+    return `<td style="${weight}${color}">${f(v)}</td>`;
   }
-  function getVal(m, key) {
-    const d = td.monthly[m];
-    if (key==='sales') return d?.sales||0;
-    if (key==='sga')   return d?.sga||0;
-    if (key==='profit') return d?.profit||0;
-    return d?.sga_detail?.[key]||0;
-  }
-  function sumCol(key) {
-    return viewMonths.reduce((s,m) => s + getVal(m, key), 0);
+  function sumRow(key) {
+    return viewMonths.reduce((s,m) => {
+      const d = td.monthly[m];
+      return s + ((key==='sales'?d?.sales : key==='sga'?d?.sga : key==='profit'?d?.profit : (d?.sga_detail?.[key]||0)) || 0);
+    }, 0);
   }
 
-  // 헤더: 월 | 매출액 | [판관비세부...] | 판관비합계 | 영업이익
-  const headers = ['월', '매출액', ...visibleKeys];
-  if (name !== '디자인') headers.push('판관비합계');
-  headers.push('영업이익');
-
-  document.getElementById('mDetailHead').innerHTML = headers.map((h,i) => {
-    const align = i===0 ? '' : 'text-align:right';
-    const weight = (h==='매출액'||h==='판관비합계'||h==='영업이익') ? 'font-weight:700' : '';
-    return `<th style="${align};${weight}">${h}</th>`;
-  }).join('');
-
-  const dataRows = [...viewMonths, ...(showCumCol ? ['누계'] : [])];
   let rows = '';
-  dataRows.forEach(m => {
-    const isCumRow = m === '누계';
-    rows += '<tr>';
-    rows += `<td style="font-weight:600;white-space:nowrap">${m}</td>`;
-    const sales  = isCumRow ? sumCol('sales')  : getVal(m, 'sales');
-    rows += cv(sales, false, true);
-    visibleKeys.forEach(k => {
-      const v = isCumRow ? sumCol(k) : getVal(m, k);
-      rows += cv(v, false, false);
-    });
-    if (name !== '디자인') {
-      const sga = isCumRow ? sumCol('sga') : getVal(m, 'sga');
-      rows += cv(sga, false, true);
-    }
-    const profit = isCumRow ? sumCol('profit') : getVal(m, 'profit');
-    rows += cv(profit, true, true);
+  rows += '<tr class="row-sales"><td style="white-space:nowrap">매출액</td>';
+  viewMonths.forEach(m => rows += cell(td.monthly[m]?.sales||0, true, false));
+  if (showCumCol) rows += cell(sumRow('sales'), true, false);
+  rows += '</tr>';
+
+  if (name !== '디자인') {
+    rows += '<tr class="row-total"><td style="white-space:nowrap">판관비 합계</td>';
+    viewMonths.forEach(m => rows += cell(td.monthly[m]?.sga||0, true, false));
+    if (showCumCol) rows += cell(sumRow('sga'), true, false);
     rows += '</tr>';
-  });
+
+    rows += `<tr class="row-sep"><td colspan="${colCount+1}">▸ 판관비 세부 항목</td></tr>`;
+    allKeys.forEach(k => {
+      const vals = viewMonths.map(m => td.monthly[m]?.sga_detail?.[k]||0);
+      if (vals.every(v => v===0)) return;
+      rows += `<tr><td style="padding-left:20px;white-space:nowrap">${k}</td>`;
+      vals.forEach(v => rows += cell(v, false, false));
+      if (showCumCol) rows += cell(sumRow(k), false, false);
+      rows += '</tr>';
+    });
+
+    rows += `<tr class="row-sep"><td colspan="${colCount+1}"></td></tr>`;
+  }
+
+  rows += '<tr class="row-profit"><td style="white-space:nowrap">영업이익</td>';
+  viewMonths.forEach(m => rows += cell(td.monthly[m]?.profit||0, true, true));
+  if (showCumCol) rows += cell(sumRow('profit'), true, true);
+  rows += '</tr>';
 
   document.getElementById('mDetailBody').innerHTML = rows;
   document.getElementById('mOverlay').classList.add('open');
